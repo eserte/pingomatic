@@ -2,15 +2,15 @@
 # -*- perl -*-
 
 #
-# $Id: pingomatic,v 1.5 2002/02/21 09:11:45 eserte Exp $
+# $Id: pingomatic,v 1.6 2003/01/12 16:07:18 eserte Exp $
 # Author: Slaven Rezic
 #
-# Copyright (C) 1999, 2000, 2001, 2002 Slaven Rezic. All rights reserved.
+# Copyright (C) 1999-2003 Slaven Rezic. All rights reserved.
 # This program is free software; you can redistribute it and/or
 # modify it under the same terms as Perl itself.
 #
-# Mail: slaven.rezic@berlin.de
-# WWW:  http://user.cs.tu-berlin.de/~eserte/
+# Mail: slaven@rezic.de
+# WWW:  http://www.rezic.de/eserte/
 #
 
 use Event;
@@ -22,16 +22,19 @@ use Sys::Hostname;
 use strict;
 use vars qw($VERSION @nameserver %pipe);
 
-$VERSION = sprintf("%d.%03d", q$Revision: 1.5 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%03d", q$Revision: 1.6 $ =~ /(\d+)\.(\d+)/);
 
+{
 package
     IO::Pipe::End;
 sub pid {
     my $me = shift;
     ${*$me}{'io_pipe_pid'};
 }
-package main;
+}
 
+######################################################################
+{
 package PingDef;
 
 use constant MAXTIME => 20000;
@@ -44,13 +47,9 @@ sub new {
     bless $self, $_[0];
 }
 
-sub host {
-    $_[0]->{Host};
-}
-
-sub active {
-    !$_[0]->{Canceled};
-}
+sub host { $_[0]->{Host} }
+sub type { $_[0]->{Type} }
+sub active { !$_[0]->{Canceled} }
 
 sub time {
     my($self, $n) = @_;
@@ -107,27 +106,28 @@ sub canceled {
     $self->{Watcher} = $watcher;
 }
 
-package main;
+} # package
+######################################################################
 
 my $hostgroup = "normal";
 my @addhost;
 my $do_ns = 1;
 my $hostfile;
-GetOptions("hosts=s" => \$hostgroup,
-	   "hostfile=s" => \$hostfile,
-	   "host=s@" => \@addhost,
-	   "ns|nameserver!" => \$do_ns);
+my $debug;
+if (!GetOptions("hosts|hostgroup=s" => \$hostgroup,
+		"hostfile=s" => \$hostfile,
+		"host=s@" => \@addhost,
+		"ns|nameserver!" => \$do_ns,
+		"d|debug!" => \$debug,
+	       )) {
+    require Pod::Usage;
+    Pod::Usage::pod2usage(1);
+}
 
 my @hosts;
 if (defined $hostfile && -r $hostfile) {
     open(H, $hostfile) or die "Can't open $hostfile";
-    while(<H>) {
-	chomp;
-	push @hosts, $_;
-    }
-    close H;
-} elsif (open(H, "$ENV{HOME}/.pingomatic.hosts")) {
-    chomp(@hosts = <H>);
+    @hosts = read_pingomatic_hosts(\*H);
     close H;
 } elsif ($hostgroup =~ /^cpan$/i) {
     @hosts = qw(ftp.gmd.de
@@ -149,7 +149,9 @@ if (defined $hostfile && -r $hostfile) {
 		ftp2.freebsd.org
 		ftp3.freebsd.org
 	       );
-} elsif ($hostgroup =~ /^(search|such)/i) {
+} elsif ($hostgroup =~ /^linux$/i) {
+    @hosts = qw(www.linux.org);
+} elsif ($hostgroup =~ /^search$/i) {
     @hosts = qw(www.altavista.com
 		www.altavista.de
 		www.yahoo.com
@@ -168,42 +170,21 @@ if (defined $hostfile && -r $hostfile) {
 		suchen.com
 		mserv.rrzn.uni-hannover.de
 	       );
+} elsif (open(H, "$ENV{HOME}/.pingomatic.hosts")) {
+    @hosts = read_pingomatic_hosts(\*H);
+    close H;
 } else {
-    @hosts = qw(www.onlineoffice.de
-		smtp.www-service.de
-		www.altavista.com
-		www.altavista.de
-		www.google.de
-		user.cs.tu-berlin.de
-		ftp.cs.tu-berlin.de
-		ftp.fu-berlin.de
-		www.linux.org
-		ftp.perl.org
-		mail.cs.tu-berlin.de
-		ftp.cs.tu-berlin.de
-		www.rezic.de
-		bbbike.sourceforge.net
-		);
-    if (hostname =~ /onlineoffice.de/) {
-	unshift @hosts, qw(hobbes.intra.onlineoffice.de
-			   rosalyn.intra.onlineoffice.de
-			   calvin.intra.onlineoffice.de
-			   dad.intra.onlineoffice.de
-			   chucky.intra.onlineoffice.de
-			   spiff.intra.onlineoffice.de
-			   homer.intra.onlineoffice.de
-			  );
-    }
-
-# ping ausgeschaltet:
-#		www.netscape.com
-#		www.microsoft.com
-#		mail.pixelpark.com
-#		ftp.freebsd.org
-#		www.cpan.org
-# uninteressant
-#		adidas.pixelpark.de
-
+    @hosts = (qw(www.altavista.com
+		 www.google.com
+		 www.perl.com
+		 www.linux.org
+		 www.sourceforge.net
+		 ftp.perl.org),
+	      ['www.netscape.com', 'http'],
+	      ['www.microsoft.com', 'http'],
+	      ['www.freebsd.org', 'http'],
+	      ['www.cpan.org', 'http'],
+	     );
 }
 
 push @hosts, @addhost;
@@ -214,15 +195,27 @@ if ($do_ns) {
     push @hosts, @nameserver;
 }
 
-my $clearchr = `clear`;
-
 my $update = 1;
 
 my $term = new Term::ReadLine 'pingomatic';
 
 my %pingdefs;
 
-open(STDERR, ">/dev/null");
+if ($debug) {
+    open(STDERR, ">/tmp/pingomatic.debug");
+} else {
+    require File::Spec;
+    open(STDERR, ">" . File::Spec->devnull);
+}
+
+my $clearchr;
+if (eval { require Term::Cap }) {
+    my $terminal = Tgetent Term::Cap { TERM => undef };
+    $clearchr = $terminal->Tputs("cl");
+}
+if ($clearchr eq '') {
+    $clearchr = `clear`;
+}
 
 foreach my $host (@hosts) {
     new_ping($host);
@@ -254,8 +247,8 @@ sub get_ping_line {
     my $e = shift;
     my $got = $e->got;
     my $fd = $e->w->fd;
-    my $host = $e->w->desc;
-    my $pingdef = $pingdefs{$host};
+    my $host_type = $e->w->desc;
+    my $pingdef = $pingdefs{$host_type};
     if ($got eq "r") {
 	if (eof $fd) {
 	    $pingdef->canceled($e->w);
@@ -277,11 +270,12 @@ sub show_ping_stat {
 	} sort {
 	    $a->[0] <=> $b->[0]
 	} map {
-	    [$_->time(10), $_]; 
+	    [$_->time(10), $_];
 	} values %pingdefs) {
 	$res .= sprintf
-	    "%-30s %-1s %-10s %-10s\n",
+	    "%-30s %-6s %-1s %-10s %-10s\n",
 	    $pingdef->host,
+	    (defined $pingdef->type ? $pingdef->type : "ping"),
 	    $pingdef->active ? 'x' : ' ',
 	    $pingdef->time(1),
 	    $pingdef->time(10);
@@ -359,9 +353,12 @@ sub add_host {
 	push @stopped, $_;
     }
     ReadMode 0;
-    my $host = $term->readline("\nadd host: ");
-    if (defined $host and $host !~ /^\s*$/) {
-	new_ping($host);
+    my $OUT = $term->OUT || \*STDOUT;
+    print $OUT "\n";
+    my $line = $term->readline("add host: "); # Can't use "\n" in prompt
+    if (defined $line and $line !~ /^\s*$/) {
+	my($host, $type) = split /[\t:]/, $line;
+	new_ping([$host, $type]);
     }
     ReadMode 3;
     $_->start foreach @stopped;
@@ -369,22 +366,70 @@ sub add_host {
 
 sub new_ping {
     my $host = shift;
+    my $type;
 
-    $pipe{$host} = new IO::Pipe;
-    $pipe{$host}->reader(qw(ping), $host);
+    if (ref $host eq 'ARRAY') {
+	($host, $type) = @$host;
+	$type = undef if defined $type && $type =~ /^\s*$/;
+    }
 
-    my $pingdef = new PingDef Host => $host;
-    $pingdefs{$host} = $pingdef;
+    my $host_type = $host . (defined $type ? ":$type" : "");
+
+    my $pipe = $pipe{$host_type} = new IO::Pipe;
+    if (!defined $type) {
+	$pipe{$host_type}->reader(qw(ping), $host);
+    } else {
+	my $pid = fork;
+	if (!$pid) {
+	    $pipe->writer();
+	    $pipe->autoflush(1);
+	    require Net::Ping;
+	    my $p = Net::Ping->new("tcp");
+	    if ($type =~ /^\d+/) {
+		$p->{port_num} = $type;
+	    } else {
+		$p->{port_num} = getservbyname($type, "tcp");
+	    }
+	    $p->hires();
+	    my $seq = 0;
+	    while(1) {
+		my($ret, $duration, $ip) = $p->ping($host, 10);
+		if ($ret) {
+		    $duration = sprintf "%.3f ms", 1000 * $duration;
+		    print $pipe <<EOF;
+answer from $ip: icmp_seq=$seq ttl=??? time=$duration
+EOF
+                }
+		sleep(1);
+	    }
+	    die "Never reached";
+	}
+	$pipe->reader;
+    }
+
+    my $pingdef = new PingDef Host => $host, Type => $type;
+    $pingdefs{$host_type} = $pingdef;
 
     Event->io(
-	      fd => $pipe{$host},
+	      fd => $pipe,
 	      poll => 'r',
 	      timeout => 5,
 	      repeat => 1,
-	      desc => $host,
+	      desc => $host_type,
 	      cb => \&get_ping_line,
 	      );
 
+}
+
+sub read_pingomatic_hosts {
+    my $fh = shift;
+    my @hosts;
+    while(<$fh>) {
+	chomp;
+	my($host, $type) = split /[\t:]/;
+	push @hosts, [$host, $type];
+    }
+    @hosts;
 }
 
 __END__
@@ -404,7 +449,7 @@ This utility pings to a number of hosts in parallel.
 =item -hosts hostgroup
 
 Use a predefined host group. Predefined host groups are: C<cpan>,
-C<freebsd>, and C<search>.
+C<freebsd>, C<linux>, and C<search>.
 
 =item -hostfile filename
 
@@ -418,7 +463,12 @@ specified multiple times.
 
 =item -ns
 
-Add the locally configured name servers to the list of hosts.
+Add the locally configured name servers from C</etc/resolv.conf>
+to the list of hosts.
+
+=item -d | -debug
+
+Turn debugging on. Debug info is saved to C</tmp/pingomatic.debug>.
 
 =back
 
@@ -430,7 +480,8 @@ While the script is pinging, the user can use the following keys:
 
 =item a
 
-Add interactively another host to the list.
+Add interactively another host to the list. To check for a specific
+port, use I<host>:I<port>.
 
 =item +
 
@@ -453,7 +504,8 @@ This utility pings to a number of hosts in parallel.
 
 =head1 FILES
 
-    ~/.pingomatic.hosts     - a list of host names to ping
+    ~/.pingomatic.hosts - A list of host names to ping. The file should
+    consist of hostnames or hostname:port specifications, one per line.
 
 =head1 PREREQUISITES
 
@@ -469,7 +521,7 @@ Networking
 
 =head1 AUTHOR
 
-Slaven Rezic <slaven.rezic@berlin.de>
+Slaven Rezic <slaven@rezic.de>
 
 =head1 SEE ALSO
 
