@@ -1,5 +1,5 @@
 #
-# $Id: Makefile,v 1.2 2003/10/07 21:44:11 eserte Exp $
+# $Id: Makefile,v 1.3 2003/10/07 21:44:35 eserte Exp $
 #
 
 all:
@@ -9,7 +9,7 @@ install:
 
 release:
 	VERSION=`perl -MExtUtils::MakeMaker -e 'print MY->parse_version("pingomatic")'`; \
-	@echo VERSION is $$VERSION; \
+	echo VERSION is $$VERSION; \
 	cp pingomatic /tmp/pingomatic-$$VERSION; \
 	cpan-upload /tmp/pingomatic-$$VERSION
 
