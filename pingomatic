@@ -2,14 +2,14 @@
 # -*- perl -*-
 
 #
-# $Id: pingomatic,v 1.4 2001/11/01 22:23:44 eserte Exp $
+# $Id: pingomatic,v 1.5 2002/02/21 09:11:45 eserte Exp $
 # Author: Slaven Rezic
 #
-# Copyright (C) 1999, 2000, 2001 Slaven Rezic. All rights reserved.
+# Copyright (C) 1999, 2000, 2001, 2002 Slaven Rezic. All rights reserved.
 # This program is free software; you can redistribute it and/or
 # modify it under the same terms as Perl itself.
 #
-# Mail: eserte@cs.tu-berlin.de
+# Mail: slaven.rezic@berlin.de
 # WWW:  http://user.cs.tu-berlin.de/~eserte/
 #
 
@@ -19,8 +19,13 @@ use Getopt::Long;
 use Term::ReadKey;
 use Term::ReadLine;
 use Sys::Hostname;
+use strict;
+use vars qw($VERSION @nameserver %pipe);
 
-package IO::Pipe::End;
+$VERSION = sprintf("%d.%03d", q$Revision: 1.5 $ =~ /(\d+)\.(\d+)/);
+
+package
+    IO::Pipe::End;
 sub pid {
     my $me = shift;
     ${*$me}{'io_pipe_pid'};
@@ -120,6 +125,9 @@ if (defined $hostfile && -r $hostfile) {
 	chomp;
 	push @hosts, $_;
     }
+    close H;
+} elsif (open(H, "$ENV{HOME}/.pingomatic.hosts")) {
+    chomp(@hosts = <H>);
     close H;
 } elsif ($hostgroup =~ /^cpan$/i) {
     @hosts = qw(ftp.gmd.de
@@ -380,3 +388,93 @@ sub new_ping {
 }
 
 __END__
+
+=head1 NAME
+
+pingomatic - multiple ping to a number of hosts
+
+=head1 DESCRIPTION
+
+This utility pings to a number of hosts in parallel.
+
+=head2 OPTIONS
+
+=over 4
+
+=item -hosts hostgroup
+
+Use a predefined host group. Predefined host groups are: C<cpan>,
+C<freebsd>, and C<search>.
+
+=item -hostfile filename
+
+Use another file with host names instead of the default
+C<~/.pingomatic.hosts>.
+
+=item -host hostname
+
+Add the named hostname to the list of hosts. This option may be
+specified multiple times.
+
+=item -ns
+
+Add the locally configured name servers to the list of hosts.
+
+=back
+
+=head2 KEYS
+
+While the script is pinging, the user can use the following keys:
+
+=over 4
+
+=item a
+
+Add interactively another host to the list.
+
+=item +
+
+Add one second to the current update interval. The default update
+interval is one second.
+
+=item -
+
+Subtract one second from the current update interval.
+
+=item Ctrl-C
+
+Terminate the script.
+
+=back
+
+=head1 README
+
+This utility pings to a number of hosts in parallel.
+
+=head1 FILES
+
+    ~/.pingomatic.hosts     - a list of host names to ping
+
+=head1 PREREQUISITES
+
+C<Event>, C<Term::ReadKey>.
+
+=head1 OSNAMES
+
+only tested on Unix
+
+=head1 SCRIPT CATEGORIES
+
+Networking
+
+=head1 AUTHOR
+
+Slaven Rezic <slaven.rezic@berlin.de>
+
+=head1 SEE ALSO
+
+ping(1).
+
+=cut
+
+
