@@ -2,7 +2,7 @@
 # -*- perl -*-
 
 #
-# $Id: pingomatic,v 1.6 2003/01/12 16:07:18 eserte Exp $
+# $Id: pingomatic,v 1.7 2003/01/30 22:50:24 eserte Exp $
 # Author: Slaven Rezic
 #
 # Copyright (C) 1999-2003 Slaven Rezic. All rights reserved.
@@ -22,7 +22,7 @@ use Sys::Hostname;
 use strict;
 use vars qw($VERSION @nameserver %pipe);
 
-$VERSION = sprintf("%d.%03d", q$Revision: 1.6 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%03d", q$Revision: 1.7 $ =~ /(\d+)\.(\d+)/);
 
 {
 package
@@ -114,11 +114,13 @@ my @addhost;
 my $do_ns = 1;
 my $hostfile;
 my $debug;
+my $update = 1;
 if (!GetOptions("hosts|hostgroup=s" => \$hostgroup,
 		"hostfile=s" => \$hostfile,
 		"host=s@" => \@addhost,
 		"ns|nameserver!" => \$do_ns,
 		"d|debug!" => \$debug,
+		"delay|update=i" => \$update,
 	       )) {
     require Pod::Usage;
     Pod::Usage::pod2usage(1);
@@ -184,6 +186,12 @@ if (defined $hostfile && -r $hostfile) {
 	      ['www.microsoft.com', 'http'],
 	      ['www.freebsd.org', 'http'],
 	      ['www.cpan.org', 'http'],
+	      ['www.yahoo.com', 'http'],
+	      ['www.amazon.com', 'http'],
+	      ['www.gnu.org', 'http'],
+	      ['ftp.funet.fi', 'ftp'],
+	      ['www.slashdot.org', 'http'],
+	      ['www.heise.de', 'http'],
 	     );
 }
 
@@ -194,8 +202,6 @@ if ($do_ns) {
     get_nameserver();
     push @hosts, @nameserver;
 }
-
-my $update = 1;
 
 my $term = new Term::ReadLine 'pingomatic';
 
@@ -221,6 +227,9 @@ foreach my $host (@hosts) {
     new_ping($host);
 }
 
+show_ping_stat();
+
+# start timers...
 my $update_w =
     Event->timer(desc => "update",
 		 interval => $update,
@@ -465,6 +474,10 @@ specified multiple times.
 
 Add the locally configured name servers from C</etc/resolv.conf>
 to the list of hosts.
+
+=item -delay | -update seconds
+
+Set the updating interval. Default is one second.
 
 =item -d | -debug
 
