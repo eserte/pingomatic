@@ -2,7 +2,7 @@
 # -*- perl -*-
 
 #
-# $Id: pingomatic,v 1.7 2003/01/30 22:50:24 eserte Exp $
+# $Id: pingomatic,v 1.8 2003/05/15 06:22:49 eserte Exp $
 # Author: Slaven Rezic
 #
 # Copyright (C) 1999-2003 Slaven Rezic. All rights reserved.
@@ -22,7 +22,7 @@ use Sys::Hostname;
 use strict;
 use vars qw($VERSION @nameserver %pipe);
 
-$VERSION = sprintf("%d.%03d", q$Revision: 1.7 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%03d", q$Revision: 1.8 $ =~ /(\d+)\.(\d+)/);
 
 {
 package
@@ -108,6 +108,82 @@ sub canceled {
 
 } # package
 ######################################################################
+# hostgroups
+
+sub hostgroup_cpan {
+    qw(ftp.gmd.de
+       ftp.gwdg.de
+       ftp.leo.org
+       ftp.mpi-sb.mpg.de
+       ftp.rz.ruhr-uni-bochum.de
+       ftp.uni-erlangen.de
+       ftp.uni-hamburg.de
+       ftp.digital.com
+       ftp.cdrom.com
+       www.perl.org
+       www.cpan.org
+    );
+}
+
+sub hostgroup_freebsd {
+    qw(ftp.cs.tu-berlin.de
+       ftp.freebsd.org
+       ftp.freebsd.de
+       ftp2.freebsd.org
+       ftp3.freebsd.org
+    );
+}
+
+sub hostgroup_linux {
+    qw(www.linux.org www.rpmfind.net www.redhat.com
+       www.suse.de www.mandrake.com);
+}
+
+sub hostgroup_search {
+    qw(www.altavista.com
+       www.altavista.de
+       www.yahoo.com
+       www.infoseek.com
+       www.hotbot.com
+       www.lycos.com
+       www.lycos.de
+       www.dejanews.com
+       search.opentext.com
+       home.netscape.com
+       webcrawler.com
+       netguide.de
+       www.web.de
+       www.fireball.de
+       www.hurra.de
+       suchen.com
+       mserv.rrzn.uni-hannover.de
+    );
+}
+
+sub hostgroup_default {
+    (qw(www.altavista.com
+       www.google.com
+       www.perl.com
+       www.linux.org
+       www.sourceforge.net
+       ftp.perl.org),
+     ['www.netscape.com', 'http'],
+     ['www.microsoft.com', 'http'],
+     ['www.freebsd.org', 'http'],
+     ['www.cpan.org', 'http'],
+     ['www.yahoo.com', 'http'],
+     ['www.amazon.com', 'http'],
+     ['www.gnu.org', 'http'],
+     ['ftp.funet.fi', 'ftp'],
+     ['www.slashdot.org', 'http'],
+     ['www.heise.de', 'http'],
+    );
+}
+
+*hostgroup_normal = *hostgroup_normal = \&hostgroup_default;
+
+######################################################################
+# main
 
 my $hostgroup = "normal";
 my @addhost;
@@ -120,7 +196,7 @@ if (!GetOptions("hosts|hostgroup=s" => \$hostgroup,
 		"host=s@" => \@addhost,
 		"ns|nameserver!" => \$do_ns,
 		"d|debug!" => \$debug,
-		"delay|update=i" => \$update,
+		"update|interval=i" => \$update,
 	       )) {
     require Pod::Usage;
     Pod::Usage::pod2usage(1);
@@ -131,68 +207,14 @@ if (defined $hostfile && -r $hostfile) {
     open(H, $hostfile) or die "Can't open $hostfile";
     @hosts = read_pingomatic_hosts(\*H);
     close H;
-} elsif ($hostgroup =~ /^cpan$/i) {
-    @hosts = qw(ftp.gmd.de
-		ftp.gwdg.de
-		ftp.leo.org
-		ftp.mpi-sb.mpg.de
-		ftp.rz.ruhr-uni-bochum.de
-		ftp.uni-erlangen.de
-		ftp.uni-hamburg.de
-		ftp.digital.com
-		ftp.cdrom.com
-		www.perl.org
-		www.cpan.org
-		);
-} elsif ($hostgroup =~ /^freebsd$/i) {
-    @hosts = qw(ftp.cs.tu-berlin.de
-		ftp.freebsd.org
-		ftp.freebsd.de
-		ftp2.freebsd.org
-		ftp3.freebsd.org
-	       );
-} elsif ($hostgroup =~ /^linux$/i) {
-    @hosts = qw(www.linux.org);
-} elsif ($hostgroup =~ /^search$/i) {
-    @hosts = qw(www.altavista.com
-		www.altavista.de
-		www.yahoo.com
-		www.infoseek.com
-		www.hotbot.com
-		www.lycos.com
-		www.lycos.de
-		www.dejanews.com
-		search.opentext.com
-		home.netscape.com
-		webcrawler.com
-		netguide.de
-		www.web.de
-		www.fireball.de
-		www.hurra.de
-		suchen.com
-		mserv.rrzn.uni-hannover.de
-	       );
+} elsif ($hostgroup ne 'normal') {
+    no strict 'refs';
+    @hosts = &{"hostgroup_" . lc($hostgroup)};
 } elsif (open(H, "$ENV{HOME}/.pingomatic.hosts")) {
     @hosts = read_pingomatic_hosts(\*H);
     close H;
 } else {
-    @hosts = (qw(www.altavista.com
-		 www.google.com
-		 www.perl.com
-		 www.linux.org
-		 www.sourceforge.net
-		 ftp.perl.org),
-	      ['www.netscape.com', 'http'],
-	      ['www.microsoft.com', 'http'],
-	      ['www.freebsd.org', 'http'],
-	      ['www.cpan.org', 'http'],
-	      ['www.yahoo.com', 'http'],
-	      ['www.amazon.com', 'http'],
-	      ['www.gnu.org', 'http'],
-	      ['ftp.funet.fi', 'ftp'],
-	      ['www.slashdot.org', 'http'],
-	      ['www.heise.de', 'http'],
-	     );
+    @hosts = hostgroup_default();
 }
 
 push @hosts, @addhost;
@@ -435,8 +457,13 @@ sub read_pingomatic_hosts {
     my @hosts;
     while(<$fh>) {
 	chomp;
-	my($host, $type) = split /[\t:]/;
-	push @hosts, [$host, $type];
+	if (/^\@(.*)\@$/) {
+	    no strict 'refs';
+	    push @hosts, &{"hostgroup_" . lc($1)};
+	} else {
+	    my($host, $type) = split /[\t:]/;
+	    push @hosts, [$host, $type];
+	}
     }
     @hosts;
 }
@@ -475,13 +502,14 @@ specified multiple times.
 Add the locally configured name servers from C</etc/resolv.conf>
 to the list of hosts.
 
-=item -delay | -update seconds
-
-Set the updating interval. Default is one second.
-
 =item -d | -debug
 
 Turn debugging on. Debug info is saved to C</tmp/pingomatic.debug>.
+
+=item -interval seconds | -update seconds
+
+Specify an interval in seconds between sending pings. Default is one
+second.
 
 =back
 
