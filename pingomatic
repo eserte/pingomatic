@@ -2,10 +2,10 @@
 # -*- perl -*-
 
 #
-# $Id: pingomatic,v 1.1 2000/07/18 18:01:45 eserte Exp $
+# $Id: pingomatic,v 1.2 2001/07/12 20:28:06 eserte Exp $
 # Author: Slaven Rezic
 #
-# Copyright (C) 1999 Slaven Rezic. All rights reserved.
+# Copyright (C) 1999, 2000, 2001 Slaven Rezic. All rights reserved.
 # This program is free software; you can redistribute it and/or
 # modify it under the same terms as Perl itself.
 #
@@ -16,6 +16,8 @@
 use Event;
 use IO::Pipe;
 use Getopt::Long;
+use Term::ReadKey;
+use Term::ReadLine;
 
 package IO::Pipe::End;
 sub pid {
@@ -158,11 +160,10 @@ if (defined $hostfile && -r $hostfile) {
 		mserv.rrzn.uni-hannover.de
 	       );
 } else {
-    @hosts = qw(hobbes.intra.onlineoffice.de
-		rosalyn.intra.onlineoffice.de
+    @hosts = qw(dad.intra.onlineoffice.de
 		calvin.intra.onlineoffice.de
+		chucky.intra.onlineoffice.de
 		www.onlineoffice.de
-		smtp.www-service.de
 		www.altavista.com
 		www.altavista.de
 		user.cs.tu-berlin.de
@@ -175,12 +176,14 @@ if (defined $hostfile && -r $hostfile) {
 		www.scriptics.com
 		mail.cs.tu-berlin.de
 		ftp.cs.tu-berlin.de
-		mail.pixelpark.com
+		www.rezic.de
+		bbbike.sourceforge.net
 		);
 
 # ping ausgeschaltet:
 #		www.netscape.com
 #		www.microsoft.com
+#		mail.pixelpark.com
 # uninteressant
 #		adidas.pixelpark.de
 
@@ -196,36 +199,37 @@ if ($do_ns) {
 
 my $clearchr = `clear`;
 
+my $update = 1;
+
+my $term = new Term::ReadLine 'pingomatic';
+
 my %pingdefs;
 
 open(STDERR, ">/dev/null");
 
 foreach my $host (@hosts) {
-    $pipe{$host} = new IO::Pipe;
-    $pipe{$host}->reader(qw(ping), $host);
-
-    my $pingdef = new PingDef Host => $host;
-    $pingdefs{$host} = $pingdef;
-
-    Event->io(
-	      fd => $pipe{$host},
-	      poll => 'r',
-	      timeout => 5,
-	      repeat => 1,
-	      desc => $host,
-	      cb => \&get_ping_line,
-	      );
+    new_ping($host);
 }
- 
-Event->timer(
-	     interval => 1,
-	     cb => \&show_ping_stat,
-	     );
+
+my $update_w =
+    Event->timer(desc => "update",
+		 interval => $update,
+		 cb => \&show_ping_stat,
+		 );
 
 Event->timer(
 	     interval => 20,
 	     cb => \&try_later,
 	    );
+
+Event->io(
+	  fd => \*STDIN,
+	  poll => 'r',
+	  cb => \&handle_key,
+	  repeat => 1,
+	 );
+
+ReadMode 3;
 
 Event::loop();
 
@@ -266,7 +270,8 @@ sub show_ping_stat {
 	    $pingdef->time(10);
     }
 
-    print "$clearchr$res";
+    my $statusline = "*** " . scalar(localtime) . " update: $update s ***\n";
+    print "$clearchr$statusline$res";
 }
 
 sub get_nameserver {
@@ -300,6 +305,69 @@ sub try_later {
 # 	    }
 # 	}
 #     }
+}
+
+sub handle_key {
+    my $e = shift;
+    my $got = $e->got;
+    if ($got eq 'r') {
+	if (defined(my $key = ReadKey(-1))) {
+	    my $update_changed;
+	    if ($key =~ /^[qx]$/) {
+		exit(0);
+	    } elsif ($key eq '-' and $update > 1) {
+		$update--;
+		$update_changed++;
+	    } elsif ($key eq '+') {
+		$update++;
+		$update_changed++;
+	    } elsif ($key =~ /^\d$/ and $key > 0) {
+		$update = $key;
+		$update_changed++;
+	    } elsif ($key eq 'a') {
+		add_host();
+	    }
+
+	    if ($update_changed) {
+		$update_w->interval($update);
+	    }
+	}
+    }
+}
+
+sub add_host {
+    my @stopped;
+    foreach (Event::all_running()) {
+	$_->stop;
+	push @stopped, $_;
+    }
+    ReadMode 0;
+    my $host = $term->readline("\nadd host: ");
+    if (defined $host and $host !~ /^\s*$/) {
+	new_ping($host);
+    }
+    ReadMode 3;
+    $_->start foreach @stopped;
+}
+
+sub new_ping {
+    my $host = shift;
+
+    $pipe{$host} = new IO::Pipe;
+    $pipe{$host}->reader(qw(ping), $host);
+
+    my $pingdef = new PingDef Host => $host;
+    $pingdefs{$host} = $pingdef;
+
+    Event->io(
+	      fd => $pipe{$host},
+	      poll => 'r',
+	      timeout => 5,
+	      repeat => 1,
+	      desc => $host,
+	      cb => \&get_ping_line,
+	      );
+
 }
 
 __END__
