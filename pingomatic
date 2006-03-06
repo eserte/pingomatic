@@ -2,7 +2,7 @@
 # -*- perl -*-
 
 #
-# $Id: pingomatic,v 1.10 2003/10/07 21:41:57 eserte Exp $
+# $Id: pingomatic,v 1.11 2006/03/06 22:04:24 eserte Exp $
 # Author: Slaven Rezic
 #
 # Copyright (C) 1999-2003 Slaven Rezic. All rights reserved.
@@ -22,7 +22,7 @@ use Sys::Hostname;
 use strict;
 use vars qw($VERSION @nameserver %pipe);
 
-$VERSION = sprintf("%d.%03d", q$Revision: 1.10 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%03d", q$Revision: 1.11 $ =~ /(\d+)\.(\d+)/);
 
 {
 package
@@ -168,8 +168,8 @@ sub hostgroup_default {
        www.google.com
        www.perl.com
        www.linux.org
-       www.sourceforge.net
        ftp.perl.org),
+     ['www.sourceforge.net', 'http'],
      ['www.netscape.com', 'http'],
      ['www.microsoft.com', 'http'],
      ['www.freebsd.org', 'http'],
@@ -177,7 +177,7 @@ sub hostgroup_default {
      ['www.yahoo.com', 'http'],
      ['www.amazon.com', 'http'],
      ['www.gnu.org', 'http'],
-     ['ftp.funet.fi', 'ftp'],
+     ['ftp.funet.fi', 'http'],
      ['www.slashdot.org', 'http'],
      ['www.heise.de', 'http'],
     );
@@ -194,12 +194,15 @@ my $do_ns = 1;
 my $hostfile;
 my $debug;
 my $update = 1;
+my $log;
+my $logfh;
 if (!GetOptions("hosts|hostgroup=s" => \$hostgroup,
 		"hostfile=s" => \$hostfile,
 		"host=s@" => \@addhost,
 		"ns|nameserver!" => \$do_ns,
 		"d|debug!" => \$debug,
 		"update|interval=i" => \$update,
+		"log|logfile=s" => \$log,
 	       )) {
     require Pod::Usage;
     Pod::Usage::pod2usage(1);
@@ -222,12 +225,12 @@ if (defined $hostfile && -r $hostfile) {
     @hosts = hostgroup_default();
 }
 
-push @hosts, @addhost;
-push @hosts, @ARGV if @ARGV;
+push @hosts, map { pingomatic_host($_) } @addhost;
+push @hosts, map { pingomatic_host($_) } @ARGV if @ARGV;
 
 if ($do_ns) {
     get_nameserver();
-    push @hosts, @nameserver;
+    push @hosts, map { [ $_, "name" ] } @nameserver;
 }
 
 my $term = new Term::ReadLine 'pingomatic';
@@ -243,15 +246,23 @@ if ($debug) {
 
 my $clearchr;
 if (eval { require Term::Cap }) {
-    my $terminal = Tgetent Term::Cap { TERM => undef };
+    my $terminal = Tgetent Term::Cap { TERM => undef, OSPEED => 9600 };
     $clearchr = $terminal->Tputs("cl");
 }
 if ($clearchr eq '') {
+    # XXX MSWin32: use cls instead?
     $clearchr = `clear`;
 }
 
 foreach my $host (@hosts) {
     new_ping($host);
+}
+
+if ($log) {
+    my $log_exists = -e $log;
+    open $logfh, ">>$log" or die "Can't append to $log: $!"; # XXX STDERR is redirected already
+    my $oldfh = select($logfh); $| = 1; select($oldfh);
+    print_log_header() if not $log_exists;
 }
 
 show_ping_stat();
@@ -279,6 +290,10 @@ ReadMode 3;
 
 Event::loop();
 
+sub print_log_header {
+    print $logfh join("\t", "Time", map { $pingdefs{$_}->host } sort keys %pingdefs) . "\n";
+}
+
 sub get_ping_line {
     my $e = shift;
     my $got = $e->got;
@@ -301,6 +316,7 @@ sub get_ping_line {
 
 sub show_ping_stat {
     my $res = '';
+    my %host2time;
     foreach my $pingdef (map {
 	$_->[1]
 	} sort {
@@ -308,6 +324,7 @@ sub show_ping_stat {
 	} map {
 	    [$_->time(10), $_];
 	} values %pingdefs) {
+	$host2time{$pingdef->host} = $pingdef->time(1, "as_string");
 	$res .= sprintf
 	    "%-30s %-6s %-1s %-10s %-10s\n",
 	    $pingdef->host,
@@ -319,6 +336,10 @@ sub show_ping_stat {
 
     my $statusline = "*** " . scalar(localtime) . " update: $update s ***\n";
     print "$clearchr$statusline$res";
+
+    if ($logfh) {
+	print $logfh join("\t", epoch2isodate(time), map { $host2time{$pingdefs{$_}->host} } sort keys %pingdefs) . "\n";
+    }
 }
 
 sub get_nameserver {
@@ -361,7 +382,8 @@ sub handle_key {
 	if (defined(my $key = ReadKey(-1))) {
 	    my $update_changed;
 	    if ($key =~ /^[qx]$/) {
-		exit(0);
+		kill -9 => $$;
+		exit(0); # for other OSes
 	    } elsif ($key eq '-' and $update > 1) {
 		$update--;
 		$update_changed++;
@@ -463,20 +485,38 @@ EOF
 
 }
 
+sub pingomatic_host {
+    my $line = shift;
+    if (my($host, $type) = split /[\t:]/, $line) {
+	[$host, $type];
+    } else {
+	$line;
+    }
+}
+
 sub read_pingomatic_hosts {
     my $fh = shift;
     my @hosts;
     while(<$fh>) {
 	chomp;
+	next if /^$/;
+	next if /^\s*\#/;
 	if (/^\@(.*)\@$/) {
 	    no strict 'refs';
 	    push @hosts, &{"hostgroup_" . lc($1)};
 	} else {
-	    my($host, $type) = split /[\t:]/;
-	    push @hosts, [$host, $type];
+	    push @hosts, pingomatic_host($_);
 	}
     }
     @hosts;
+}
+
+sub epoch2isodate {
+    my $time = shift;
+    my @l = gmtime $time;
+    sprintf("%04d-%02d-%02dT%02d:%02d:%02dZ",
+	    $l[5]+1900, $l[4]+1, $l[3],
+	    $l[2],      $l[1],   $l[0]);
 }
 
 __END__
@@ -505,13 +545,17 @@ C<~/.pingomatic.hosts>.
 
 =item -host hostname
 
-Add the named hostname to the list of hosts. This option may be
-specified multiple times.
+=item -host hostname:port
+
+Add the named hostname (optionally with a port in numerical or named
+form) to the list of hosts. This option may be specified multiple
+times.
 
 =item -ns
 
-Add the locally configured name servers from C</etc/resolv.conf>
-to the list of hosts.
+Add the locally configured name servers from C</etc/resolv.conf> to
+the list of hosts. This is the default, use C<-nons> to remove the
+name servers.
 
 =item -d | -debug
 
@@ -521,6 +565,11 @@ Turn debugging on. Debug info is saved to C</tmp/pingomatic.debug>.
 
 Specify an interval in seconds between sending pings. Default is one
 second.
+
+=item -log file
+
+Write a tab separated logfile (append if it already exists) with the
+per-host and per-interval ping values.
 
 =back
 
@@ -549,6 +598,21 @@ Subtract one second from the current update interval.
 Terminate the script.
 
 =back
+
+=head1 THE .PINGOMATIC.HOSTS FILE
+
+Each line in the F<~/.pingomatic.hosts> file can consist of a I<host>
+or a I<host>:I<port> specification.
+
+Empty lines and lines beginning with a '#' are ignored.
+
+=head1 EXAMPLES
+
+Here's an example (which probably only works on Linux) to ping all
+hosts with a current tcp connection from our host:
+
+    cat /proc/net/tcp | sed -e '1 d' -e 's/^ *//' | cut -d" " -f3 | grep -v "^00000000" | cut -d":" -f1 | perl -nle '@x = /(..)/g; print join(".", reverse(map { hex($_) } @x));' > /tmp/hosts
+    pingomatic /tmp/hosts
 
 =head1 README
 
