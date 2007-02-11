@@ -1,5 +1,5 @@
 #
-# $Id: Makefile,v 1.7 2006/03/06 22:16:09 eserte Exp $
+# $Id: Makefile,v 1.8 2007/02/11 22:03:45 eserte Exp $
 #
 
 all:
@@ -7,6 +7,7 @@ all:
 install:
 	install -c -m 755 pingomatic /usr/local/bin
 
+DISTNAME=pingomatic
 CVS_DIR=${HOME}/work/pingomatic
 
 copy-to-cvs:
