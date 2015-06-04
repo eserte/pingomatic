@@ -2,7 +2,7 @@
 # -*- perl -*-
 
 #
-# $Id: pingomatic,v 1.13 2006/05/02 21:20:10 eserte Exp $
+# $Id: pingomatic,v 1.14 2015/06/04 20:39:03 eserte Exp $
 # Author: Slaven Rezic
 #
 # Copyright (C) 1999-2006 Slaven Rezic. All rights reserved.
@@ -22,7 +22,7 @@ use Sys::Hostname;
 use strict;
 use vars qw($VERSION @nameserver %pipe);
 
-$VERSION = sprintf("%d.%03d", q$Revision: 1.13 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%03d", q$Revision: 1.14 $ =~ /(\d+)\.(\d+)/);
 
 {
 package
@@ -168,7 +168,8 @@ sub hostgroup_default {
        www.google.com
        www.perl.com
        www.linux.org
-       ftp.perl.org),
+       ),
+     ['ftp.perl.org', 'ftp'],
      ['www.sourceforge.net', 'http'],
      ['www.netscape.com', 'http'],
      ['www.microsoft.com', 'http'],
@@ -237,22 +238,18 @@ my $term = new Term::ReadLine 'pingomatic';
 
 my %pingdefs;
 
-if ($debug) {
-    open(STDERR, ">/tmp/pingomatic.debug");
-} else {
-    require File::Spec;
-    open(STDERR, ">" . File::Spec->devnull);
-}
-
 my $clearchr;
-if (eval { require Term::Cap }) {
+eval {
+    require Term::Cap;
     my $terminal = Tgetent Term::Cap { TERM => undef, OSPEED => 9600 };
     $clearchr = $terminal->Tputs("cl");
-}
-if ($clearchr eq '') {
+};
+if (!defined $clearchr || $clearchr eq '') {
     # XXX MSWin32: use cls instead?
     $clearchr = `clear`;
 }
+
+redirect_stderr();
 
 foreach my $host (@hosts) {
     new_ping($host);
@@ -290,6 +287,18 @@ ReadMode 3;
 
 Event::loop();
 
+sub redirect_stderr {
+    my($append) = @_;
+    if ($debug) {
+	my $redir = ">";
+	if ($append) { $redir = ">>" }
+	open(STDERR, "$redir /tmp/pingomatic.debug");
+    } else {
+	require File::Spec;
+	open(STDERR, ">" . File::Spec->devnull);
+    }
+}
+
 sub print_log_header {
     print $logfh join("\t", "Time", map { $pingdefs{$_}->host } sort keys %pingdefs) . "\n";
 }
@@ -317,6 +326,7 @@ sub get_ping_line {
 sub show_ping_stat {
     my $res = '';
     my %host2time;
+    local $^W = undef; # cease some "uninitialized value" warnings
     foreach my $pingdef (map {
 	$_->[1]
 	} sort {
@@ -445,6 +455,8 @@ sub new_ping {
     } else {
 	my $pid = fork;
 	if (!$pid) {
+	    redirect_stderr('append');
+
 	    $pipe->writer();
 	    $pipe->autoflush(1);
 	    require Net::Ping;
