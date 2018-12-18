@@ -2,7 +2,7 @@
 # -*- perl -*-
 
 #
-# $Id: pingomatic,v 1.15 2015/08/01 09:58:24 eserte Exp $
+# $Id: pingomatic,v 1.16 2018/12/18 18:47:02 eserte Exp $
 # Author: Slaven Rezic
 #
 # Copyright (C) 1999-2006,2015 Slaven Rezic. All rights reserved.
@@ -22,7 +22,7 @@ use Sys::Hostname;
 use strict;
 use vars qw($VERSION @nameserver %pipe);
 
-$VERSION = sprintf("%d.%03d", q$Revision: 1.15 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%03d", q$Revision: 1.16 $ =~ /(\d+)\.(\d+)/);
 
 {
 package
@@ -164,8 +164,7 @@ sub hostgroup_search {
 }
 
 sub hostgroup_default {
-    (qw(www.altavista.com
-       www.perl.com
+    (qw(www.perl.com
        www.linux.org
        ),
      ['ftp.perl.org', 'ftp'],
@@ -174,6 +173,7 @@ sub hostgroup_default {
      ['www.microsoft.com', 'http'],
      ['www.freebsd.org', 'http'],
      ['www.cpan.org', 'http'],
+     ['www.metacpan.org', 'https'],
      ['www.yahoo.com', 'http'],
      ['www.amazon.com', 'http'],
      ['www.gnu.org', 'http'],
@@ -181,6 +181,7 @@ sub hostgroup_default {
      ['www.slashdot.org', 'http'],
      ['www.heise.de', 'http'],
      ['www.google.com', 'http'],
+     ['twitter.com', 'https'],
     );
 }
 
