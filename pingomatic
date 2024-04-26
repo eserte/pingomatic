@@ -117,17 +117,20 @@ sub canceled {
 # hostgroups
 
 sub hostgroup_cpan {
-    qw(ftp.gmd.de
-       ftp.gwdg.de
-       ftp.leo.org
-       ftp.mpi-sb.mpg.de
-       ftp.rz.ruhr-uni-bochum.de
-       ftp.uni-erlangen.de
-       ftp.uni-hamburg.de
-       ftp.digital.com
-       ftp.cdrom.com
-       www.perl.org
-       www.cpan.org
+    (
+	qw(ftp.gwdg.de
+	   ftp.mpi-sb.mpg.de
+	   ftp.rz.ruhr-uni-bochum.de
+	   ftp.uni-erlangen.de
+        ),
+	[qw(www.perl.org https)],
+	[qw(www.cpan.org https)],
+	[qw(pause.perl.org https)],
+	[qw(metacpan.org https)],
+	[qw(cpan.metacpan.org https)],
+	[qw(www.cpantesters.org https)],
+	[qw(cpan.cpantesters.org https)],
+	[qw(matrix.cpantesters.org http)],
     );
 }
 
