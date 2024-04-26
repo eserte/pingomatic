@@ -155,23 +155,28 @@ sub hostgroup_linux {
 }
 
 sub hostgroup_search {
-    qw(www.altavista.com
-       www.altavista.de
-       www.yahoo.com
-       www.infoseek.com
-       www.hotbot.com
-       www.lycos.com
-       www.lycos.de
-       www.dejanews.com
-       search.opentext.com
-       home.netscape.com
-       webcrawler.com
-       netguide.de
-       www.web.de
-       www.fireball.de
-       www.hurra.de
-       suchen.com
-       mserv.rrzn.uni-hannover.de
+    (
+	[qw(www.google.com ping)],
+	[qw(www.google.com http)],
+	[qw(www.google.com https)],
+	[qw(www.google.de https)],
+	[qw(www.altavista.com https)],
+	[qw(www.altavista.de https)],
+	[qw(www.yahoo.com https)],
+	[qw(bing.com https)],
+	[qw(duckduckgo.com https)],
+	qw(www.infoseek.com
+	   www.hotbot.com
+	   www.lycos.com
+	   www.lycos.de
+	   www.dejanews.com
+	   home.netscape.com
+	   webcrawler.com
+	   netguide.de
+	   www.web.de
+	   www.fireball.de
+	   suchen.com
+        ),
     );
 }
 
