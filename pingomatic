@@ -135,11 +135,11 @@ sub hostgroup_cpan {
 }
 
 sub hostgroup_freebsd {
-    qw(ftp.cs.tu-berlin.de
-       ftp.freebsd.org
-       ftp.freebsd.de
-       ftp2.freebsd.org
-       ftp3.freebsd.org
+    (
+	[qw(ftp.freebsd.org ftp)],
+	[qw(ftp2.freebsd.org ftp)],
+	[qw(ftp3.freebsd.org ftp)],
+	[qw(www.freebsd.org https)],
     );
 }
 
