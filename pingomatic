@@ -12,16 +12,20 @@
 # WWW:  http://www.sourceforge.net/projects/srezic
 #
 
+use strict;
+use warnings;
+
 use Event;
 use IO::Pipe;
 use Getopt::Long;
 use Term::ReadKey;
 use Term::ReadLine;
 use Sys::Hostname;
-use strict;
-use vars qw($VERSION @nameserver %pipe);
 
-$VERSION = '1.21';
+our $VERSION = '1.21';
+
+my @nameserver;
+my %pipe;
 
 {
 package
@@ -214,17 +218,17 @@ if (!GetOptions("hosts|hostgroup=s" => \$hostgroup,
 
 my @hosts;
 if (defined $hostfile && -r $hostfile) {
-    open(H, $hostfile) or die "Can't open $hostfile";
-    @hosts = read_pingomatic_hosts(\*H);
-    close H;
+    open(my $fh, '<', $hostfile) or die "Can't open $hostfile: $!";
+    @hosts = read_pingomatic_hosts($fh);
+    close $fh;
 } elsif ($hostgroup eq 'empty') {
     @hosts = ();
 } elsif ($hostgroup ne 'normal') {
     no strict 'refs';
     @hosts = &{"hostgroup_" . lc($hostgroup)};
-} elsif (open(H, "$ENV{HOME}/.pingomatic.hosts")) {
-    @hosts = read_pingomatic_hosts(\*H);
-    close H;
+} elsif (open(my $fh, '<', "$ENV{HOME}/.pingomatic.hosts")) {
+    @hosts = read_pingomatic_hosts($fh);
+    close $fh;
 } else {
     @hosts = hostgroup_default();
 }
@@ -362,14 +366,13 @@ sub show_ping_stat {
 
 sub get_nameserver {
     @nameserver = ();
-    if (open(NS, "/etc/resolv.conf")) {
-	while(<NS>) {
+    if (open(my $fh, "/etc/resolv.conf")) {
+	while(<$fh>) {
 	    s/#.*//g;
 	    if (/nameserver\s+(.*)\s*$/) {
 		push @nameserver, $1;
 	    }
 	}
-	close NS;
     } else {
 	warn "Can't open resolv.conf\n";
     }
