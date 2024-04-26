@@ -231,11 +231,10 @@ if (defined $hostfile && -r $hostfile) {
     close $fh;
 } else {
     @hosts = hostgroup_default();
-}
-
-if (open my $fh, "$ENV{HOME}/.pingomatic.hosts.add") {
-    push @hosts, read_pingomatic_hosts($fh);
-    close $fh;
+    if (open my $fh, "$ENV{HOME}/.pingomatic.hosts.add") {
+	push @hosts, read_pingomatic_hosts($fh);
+	close $fh;
+    }
 }
 
 push @hosts, map { pingomatic_host($_) } @addhost;
