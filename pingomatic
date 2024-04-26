@@ -144,8 +144,14 @@ sub hostgroup_freebsd {
 }
 
 sub hostgroup_linux {
-    qw(www.linux.org www.rpmfind.net www.redhat.com
-       www.suse.de www.mandrake.com);
+    (
+	[qw(www.linux.org https)],
+	[qw(www.rpmfind.net https)],
+	[qw(www.redhat.com https)],
+	[qw(www.suse.de https)],
+	[qw(debian.org https)],
+	[qw(ubuntu.com https)],
+    );
 }
 
 sub hostgroup_search {
