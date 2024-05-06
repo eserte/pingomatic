@@ -185,6 +185,8 @@ sub hostgroup_default {
        ),
      ['www.perl.com', 'https'],
      ['ftp.perl.org', 'ftp'],
+     ['github.com', 'https'],
+     ['gitlab.com', 'https'],
      ['www.sourceforge.net', 'http'],
      ['www.netscape.com', 'http'],
      ['www.microsoft.com', 'http'],
