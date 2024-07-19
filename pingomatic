@@ -204,6 +204,7 @@ sub hostgroup_default {
      ['www.openstreetmap.org', 'https'],
      ['www.openstreetmap.de', 'https'],
      ['www.bing.com', 'https'],
+     ['spiegel.de', 'https'],
     );
 }
 
