@@ -181,8 +181,8 @@ sub hostgroup_search {
 }
 
 sub hostgroup_default {
-    (qw(www.linux.org
-       ),
+    (
+     ['www.linux.org', 'https'],
      ['www.perl.com', 'https'],
      ['ftp.perl.org', 'ftp'],
      ['github.com', 'https'],
